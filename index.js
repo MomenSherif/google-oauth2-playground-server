@@ -16,17 +16,13 @@ const clientSecret = process.env.CLIENT_SECRET;
 const oAuth2Client = new OAuth2Client(
   clientId,
   clientSecret,
-  'http://localhost:3001/oauth2callback',
+  // 'http://localhost:3001/oauth2callback', //'postmessage' if using authorization code flow with popup mode
+  'postmessage',
 );
 
 const app = express();
 
-app.use(
-  cors({
-    origin: true,
-    credentials: true,
-  }),
-);
+app.use(cors());
 app.use(cookieParser());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
@@ -34,22 +30,28 @@ app.use(express.urlencoded({ extended: true }));
 // redirect mode (personalized button)
 app.post('/oauth2callback', async (req, res) => {
   res
-    .cookie('@react-oauth/google_REFRESH_TOKEN', req.body.credential)
-    .redirect(302, 'http://localhost:3000/');
+    .cookie('@react-oauth/google_ACCESS_TOKEN', req.body.credential, {
+      maxAge: 1 * 60 * 60 * 1000,
+    })
+    .redirect(301, 'http://localhost:3000/');
 });
 
 // redirect mode (authorization code flow) (custom button)
-
 app.get('/oauth2callback', async (req, res) => {
   const today = new Date();
   const { tokens } = await oAuth2Client.getToken(req.query.code);
   res
+    .cookie('@react-oauth/google_ACCESS_TOKEN', tokens.access_token, {
+      httpOnly: true,
+      secure: true,
+      maxAge: 1 * 60 * 60 * 1000,
+    })
     .cookie('@react-oauth/google_REFRESH_TOKEN', tokens.refresh_token, {
       httpOnly: true,
       secure: true,
       expires: new Date(today.getFullYear(), today.getMonth() + 6),
     })
-    .redirect(302, 'http://localhost:3000/');
+    .redirect(301, 'http://localhost:3000/');
 });
 
 /** Popup mode */
@@ -57,18 +59,25 @@ app.get('/oauth2callback', async (req, res) => {
 app.post('/auth/google', async (req, res) => {
   const today = new Date();
   const { tokens } = await oAuth2Client.getToken(req.body.code);
+
+  console.log(tokens);
+
   res
-    .cookie('@react-oauth/google_REFRESH_TOKEN', tokens.refresh_token, {
-      httpOnly: true,
-      secure: true,
-      expires: new Date(today.getFullYear(), today.getMonth() + 6),
-    })
+    // .cookie('@react-oauth/google_ACCESS_TOKEN', tokens.access_token, {
+    //   httpOnly: true,
+    //   secure: true,
+    //   maxAge: 1 * 60 * 60 * 1000,
+    // })
+    // .cookie('@react-oauth/google_REFRESH_TOKEN', tokens.refresh_token, {
+    //   httpOnly: true,
+    //   secure: true,
+    //   expires: new Date(today.getFullYear(), today.getMonth() + 6),
+    // })
     .json(tokens);
 
   // without google-auth-library
-
   // const body = new URLSearchParams({
-  //   code: req.body.code,
+  //   code: '4/0AX4XfWgTgaGdYRY28LMT8Xlu3t1QBzUejcyOy0wHq8zaFjZoLffopQTgranqRPJnxBQ5mg',
   //   client_id: clientId,
   //   client_secret: clientSecret,
   //   grant_type: 'authorization_code',
@@ -80,6 +89,7 @@ app.post('/auth/google', async (req, res) => {
   //   body,
   //   { headers: { 'Content-Type': 'application/x-www-form-urlencoded' } },
   // );
+  // res.json(data);
 });
 
 app.post('/auth/google/refresh-token', async (req, res) => {
@@ -111,4 +121,4 @@ app.post('/auth/google/refresh-token', async (req, res) => {
   // );
 });
 
-app.listen(3001, () => console.log(`server is running`));
+app.listen(3001, () => console.log(`server is running on port 3001`));
